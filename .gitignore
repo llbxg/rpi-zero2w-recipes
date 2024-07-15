@@ -1,0 +1,9 @@
+.debos-*
+
+venv
+__pycache__
+.ruff_cache
+
+artifacts
+*.img
+firmware-*

@@ -1,0 +1,109 @@
+{{/* required arguments */}}
+{{- $recipe_dir := or .recipe_dir "" -}}
+{{- $hostname := or .hostname "" -}}
+{{- $username := or .username "" -}}
+{{- $password := or .password "" -}}
+{{- $cmdline := or .cmdline "" -}}
+
+{{/* optional arguments with default values */}}
+{{- $enable_ssh := or .enable_ssh true -}}
+{{- $enable_expand_rootfs := or .enable_expand_rootfs false -}}
+{{- $enable_rpi_repo := or .enable_rpi_repo false -}}
+
+
+architecture: arm64
+
+actions:
+  - action: run
+    description: "Validate required arguments"
+    command: |
+      if [ -z {{ $recipe_dir }} ]; then
+        exit 1
+      fi
+      python3 {{ $recipe_dir }}/scripts/check_args.py  \
+        "{{ $hostname }}" "{{ $username }}" "{{ $password }}" "{{ $cmdline }}"
+
+  - action: debootstrap
+    suite: bookworm
+    components:
+      - main
+    mirror: https://deb.debian.org/debian
+    variant: minbase
+
+  - action: apt
+    description: "Install essential system packages"
+    recommends: false
+    packages:
+      - systemd
+      - systemd-sysv
+      - systemd-resolved
+      - systemd-timesyncd
+      - sudo
+      - udev
+      - kmod
+      {{ if $enable_ssh }}
+      - openssh-server
+      {{ end }}
+
+  - action: run
+    description: "Setup hostname"
+    chroot: true
+    command: |
+        echo "{{ $hostname }}" > /etc/hostname
+        echo "127.0.0.1	localhost {{ $hostname }}" > /etc/hosts
+
+  - action: run
+    description: "Set up user"
+    chroot: true
+    script: ../scripts/base/setup-user.sh {{ $username }} -p '{{ $password }}' -s -e
+
+  - action: run
+    description: "Create a directory for firmware"
+    command: |
+      mkdir -p ${ROOTDIR}/boot/firmware
+
+  - action: run
+    description: "Set up firmware configuration"
+    command: |
+      touch ${ROOTDIR}/boot/firmware/config.txt
+      echo "arm_64bit=1" > ${ROOTDIR}/boot/firmware/config.txt
+
+  - action: run
+    description: "Write command line parameters to file"
+    command: |
+      echo "{{ $cmdline }}" > ${ROOTDIR}/boot/firmware/cmdline.txt
+
+  {{ if $enable_expand_rootfs }}
+  - action: apt
+    description: "Install disk partitioning tools"
+    recommends: false
+    packages:
+      - fdisk
+      - parted
+
+  - action: overlay
+    description: "Apply filesystem expansion overlay"
+    source: ../overlays/firstboot/expand-rootfs-partition
+
+  - action: run
+    description: "Configure filesystem expansion script and service"
+    chroot: true
+    command: |
+      chmod +x -v /usr/local/bin/expand-rootfs-partition.sh
+      systemctl enable expand-rootfs-partition.service
+  {{ end }}
+
+  {{ if $enable_rpi_repo }}
+  - action: run
+    description: "Download and configure Raspberry Pi GPG key"
+    command: |
+      mkdir -p ${ROOTDIR}/usr/share/keyrings
+      curl -sL https://archive.raspberrypi.org/debian/raspberrypi.gpg.key | gpg --dearmor > \
+        ${ROOTDIR}/usr/share/keyrings/raspberrypi-archive-keyring.gpg
+
+  - action: run
+    description: "Add Raspberry Pi repository"
+    command: |
+      echo "deb [signed-by=/usr/share/keyrings/raspberrypi-archive-keyring.gpg] http://archive.raspberrypi.org/debian/ bookworm main" > \
+        ${ROOTDIR}/etc/apt/sources.list.d/raspi.list
+  {{ end }}

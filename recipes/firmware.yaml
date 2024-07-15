@@ -1,0 +1,49 @@
+{{/* required arguments */}}
+{{- $recipe_dir := or .recipe_dir "" -}}
+{{- $download_dir := or .download_dir "" -}}
+{{- $firmware_version := or .firmware_version "" -}}
+
+{{/* optional arguments */}}
+{{- $include_download_firmware := or .include_download_firmware true -}}
+{{- $include_dbt_install := or .include_dbt_install true -}}
+{{- $include_kernel_install := or .include_kernel_install true -}}
+
+{{/* derived variables */}}
+{{- $firmware := (printf "firmware-%s" $firmware_version) -}}
+{{- $local_firmware_dir := (printf "%s/%s" $download_dir $firmware ) -}}
+
+
+architecture: arm64
+
+actions:
+  - action: run
+    description: Validate required arguments
+    command: |
+      if [ -z {{ $recipe_dir }} ]; then
+        exit 1
+      fi
+      python3 {{ $recipe_dir }}/scripts/check_args.py "{{ $download_dir }}" "{{ $firmware_version }}"
+
+  {{ if $include_download_firmware }}
+  - action: run
+    description: Download firmware
+    command: |
+      python3 {{ $recipe_dir }}/scripts/download_file.py \
+        --url https://github.com/raspberrypi/firmware/archive/refs/tags/{{ $firmware_version }}.tar.gz \
+        --download-to {{ $download_dir }} \
+        --extract-to {{ $download_dir }}
+  {{ end }}
+
+  - action: run
+    description: Install firmware
+    command: |
+      mkdir -p ${ROOTDIR}/boot/firmware/
+      cp -v {{ $local_firmware_dir }}/boot/bootcode.bin             ${ROOTDIR}/boot/firmware/
+      cp -v {{ $local_firmware_dir }}/boot/fixup.dat                ${ROOTDIR}/boot/firmware/
+      cp -v {{ $local_firmware_dir }}/boot/start.elf                ${ROOTDIR}/boot/firmware/
+    {{ if $include_dbt_install }}
+      cp -v {{ $local_firmware_dir }}/boot/bcm2710-rpi-zero-2-w.dtb ${ROOTDIR}/boot/firmware/
+    {{ end }}
+    {{ if $include_kernel_install }}
+      cp -v {{ $local_firmware_dir }}/boot/kernel8.img              ${ROOTDIR}/boot/firmware/
+    {{ end }}

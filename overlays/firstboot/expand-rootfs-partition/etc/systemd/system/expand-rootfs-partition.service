@@ -1,0 +1,11 @@
+[Unit]
+Description=Expand rootfs partition on first boot
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/expand-rootfs-partition.sh -d "/dev/mmcblk0" -p 2 -r -s
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target

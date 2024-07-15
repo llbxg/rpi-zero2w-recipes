@@ -1,0 +1,7 @@
+target-version = "py311"
+
+[lint]
+select = ["ALL"]
+ignore = ["INP001", "D", "EXE", "ANN101", "ANN102"]
+fixable = ["ALL"]
+unfixable = []

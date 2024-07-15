@@ -1,0 +1,84 @@
+{{/* required arguments */}}
+{{- $recipe_dir := or .recipe_dir "" -}}
+{{- $download_dir := or .download_dir "" -}}
+{{- $firmware_version := or .firmware_version "" -}}
+{{- $kernel_version := or .kernel_version "" -}}
+{{- $target_model := or .target_model "" -}}
+
+{{/* optional arguments */}}
+{{- $include_all_modules := or .include_all_modules false -}}
+{{- $include_module_setup := or .include_module_setup false -}}
+{{- $eth_addr := or .eth_addr "" -}}
+{{- $path_modules_list := or .path_modules_list "" -}}
+
+{{/* derived variables */}}
+{{- $kernel := (printf "%s-%s+" $kernel_version $target_model) -}}
+{{- $firmware := (printf "firmware-%s" $firmware_version) -}}
+{{- $local_firmware_dir := (printf "%s/%s" $download_dir $firmware ) -}}
+
+
+architecture: arm64
+
+actions:
+  - action: run
+    description: Validate required arguments
+    command: |
+      if [ -z {{ $recipe_dir }} ]; then
+        exit 1
+      fi
+      if [ -z {{ $local_firmware_dir }} ]; then
+        exit 1
+      fi
+      python3 {{ $recipe_dir }}/scripts/check_args.py \
+        "{{ $download_dir }}" "{{ $firmware_version }}" "{{ $kernel_version }}" "{{ $target_model }}"
+
+  - action: run
+    description: Create a directory for kernel modules
+    command: mkdir -p ${ROOTDIR}/lib/modules/{{ $kernel }}
+
+  {{ if $include_all_modules }}
+  - action: run
+    description: Setup all modules
+    chroot: false
+    command: |
+      mkdir  -p ${ROOTDIR}/lib/modules/{{ $kernel }}/kernel/drivers
+      mv {{ $local_firmware_dir }}/modules/{{ $kernel }}/kernel/drivers/* ${ROOTDIR}/lib/modules/{{ $kernel }}/kernel/drivers/
+      cd ${ROOTDIR}/lib/modules/{{ $kernel }}/kernel/drivers
+      for file in $(find . -name "*.ko.xz"); do
+        xz -d "$file"
+      done
+      mkdir ${ROOTDIR}/boot/firmware/overlays/
+      mv {{ $local_firmware_dir }}/boot/overlays/*.dtbo ${ROOTDIR}/boot/firmware/overlays/
+  {{ end }}
+
+  {{ if ne $eth_addr "" }}
+  - action: run
+    description: Setup modules for ethernet adapter
+    chroot: false
+    command: |
+      python3 {{ $recipe_dir }}/scripts/modules/setup_modules.py \
+        --source {{ $local_firmware_dir }}/modules/{{ $kernel }}/kernel \
+        --destination ${ROOTDIR}/lib/modules/{{ $kernel }} \
+        drivers/net/usb/cdc_ncm.ko.xz \
+        drivers/net/usb/cdc_ether.ko.xz \
+        drivers/net/ethernet/microchip/lan743x.ko.xz
+      echo "cdc_ncm" >> ${ROOTDIR}/etc/modules
+      echo "cdc_ether" >> ${ROOTDIR}/etc/modules
+      echo "lan743x" >> ${ROOTDIR}/etc/modules
+  {{ end }}
+
+  {{ if $include_module_setup }}
+  - action: run
+    description: Transfer kernel module files
+    chroot: false
+    command: |
+      mv -v {{ $local_firmware_dir }}/modules/{{ $kernel }}/modules.order           ${ROOTDIR}/lib/modules/{{ $kernel }}
+      mv -v {{ $local_firmware_dir }}/modules/{{ $kernel }}/modules.builtin         ${ROOTDIR}/lib/modules/{{ $kernel }}
+      mv -v {{ $local_firmware_dir }}/modules/{{ $kernel }}/modules.builtin.modinfo ${ROOTDIR}/lib/modules/{{ $kernel }}
+
+  - action: run
+    description: Update module dependencies
+    chroot: true
+    command: |
+      depmod -v {{ $kernel }}
+  {{ end }}

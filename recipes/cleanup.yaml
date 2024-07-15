@@ -1,0 +1,25 @@
+{{/* required arguments */}}
+{{- $recipe_dir := or .recipe_dir "" -}}
+{{- $download_dir := or .download_dir "" -}}
+{{- $firmware_version := or .firmware_version "" -}}
+
+{{/* derived variables */}}
+{{- $firmware := (printf "firmware-%s" $firmware_version) -}}
+{{- $local_firmware_dir := (printf "%s/%s" $download_dir $firmware ) -}}
+
+architecture: arm64
+
+actions:
+  - action: run
+    description: Validate required arguments
+    command: |
+      if [ -z {{ $recipe_dir }} ]; then
+        exit 1
+      fi
+
+  - action: run
+    description: Clean-up local firmware
+    command: |
+      if [ -d {{ $local_firmware_dir }} ]; then
+        rm -rd {{ $local_firmware_dir }}
+      fi

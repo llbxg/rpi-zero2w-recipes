@@ -1,0 +1,108 @@
+{{/* fixed values */}}
+{{- $image            := "rpi_zero2w.img" -}}
+{{- $firmware_version := "1.20240424" -}}
+{{- $kernel_version   := "6.6.28" -}}
+{{- $target_model     := "v8" -}}
+{{- $hostname         := "zero2w" -}}
+{{- $username         := "user" -}}
+{{- $password         := "$5$TxUjVZ9sEXKhxGqZ$zPsFJgdro9SLHUb/XGXuCQgskpYHsthR13OgN.mMtM8" -}}
+{{- $cmdline          := "console=tty1 root=/dev/mmcblk0p2 rootfstype=ext4 rootwait" -}}
+
+{{/* required arguments */}}
+{{- $recipe_dir := or .recipe_dir "" -}}
+
+{{/* optional arguments */}}
+{{- $eth_addr := or .eth_addr "" -}}
+
+
+architecture: arm64
+
+actions:
+  - action: run
+    description: Validate required arguments
+    command: |
+      if [ -z {{ $recipe_dir }} ]; then
+        exit 1
+      fi
+
+  - action: recipe
+    description: BASE
+    recipe: {{ $recipe_dir }}/recipes/base.yaml
+    variables:
+      recipe_dir: {{ $recipe_dir }}
+      hostname: {{ $hostname }}
+      username: {{ $username}}
+      password: {{ $password }}
+      cmdline: {{ $cmdline }}
+      enable_ssh: true
+      enable_expand_rootfs: true
+      enable_rpi_repo: true
+
+  - action: recipe
+    description: FIRMWARE
+    recipe: {{ $recipe_dir }}/recipes/firmware.yaml
+    variables:
+      recipe_dir: {{ $recipe_dir }}
+      download_dir: ${ARTIFACTDIR}
+      firmware_version: {{ $firmware_version }}
+  
+  - action: recipe
+    description: MODULES
+    recipe: {{ $recipe_dir }}/recipes/modules.yaml
+    variables:
+      recipe_dir: {{ $recipe_dir }}
+      download_dir: ${ARTIFACTDIR}
+      firmware_version: {{ $firmware_version }}
+      kernel_version: {{ $kernel_version }}
+      target_model: {{ $target_model }}
+      eth_addr: {{ $eth_addr }}
+      include_module_setup: true
+
+  {{ if ne $eth_addr "" }}
+  - action: run
+    description: Set up network configuration
+    command: |
+      cat <<EOF > ${ROOTDIR}/etc/systemd/network/eth0.network
+      [Match]
+      MACAddress={{ $eth_addr }}
+
+      [Network]
+      DHCP=ipv4
+      EOF
+
+  - action: run
+    description: Set up network
+    chroot: true
+    script: {{ $recipe_dir }}/scripts/setup-network.sh -d -t -n
+  {{ end }}
+
+  - action: image-partition
+    imagename: {{ $image }}
+    imagesize: 4GB
+    partitiontype: msdos
+    mountpoints:
+      - mountpoint: /
+        partition: root
+      - mountpoint: /boot/firmware
+        partition: firmware
+        options: [ x-systemd.automount ]
+    partitions:
+      - name: firmware
+        fs: fat32
+        start: 0%
+        end: 256MB
+      - name: root
+        fs: ext4
+        start: 256MB
+        end: 100%
+        flags: [ boot ]
+
+  - action: filesystem-deploy
+    setup-kernel-cmdline: false
+
+  - action: recipe
+    recipe: {{ $recipe_dir }}/recipes/cleanup.yaml
+    variables:
+      recipe_dir: {{ $recipe_dir }}
+      download_dir: ${ARTIFACTDIR}
+      firmware_version: {{ $firmware_version }}
