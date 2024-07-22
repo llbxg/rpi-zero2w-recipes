@@ -32,10 +32,6 @@ actions:
       python3 {{ $recipe_dir }}/scripts/check_args.py \
         "{{ $download_dir }}" "{{ $firmware_version }}" "{{ $kernel_version }}" "{{ $target_model }}"
 
-  - action: run
-    description: Create a directory for kernel modules
-    command: mkdir -p ${ROOTDIR}/lib/modules/{{ $kernel }}
-
   {{ if $include_all_modules }}
   - action: run
     description: Setup all modules
@@ -65,6 +61,17 @@ actions:
       echo "cdc_ncm" >> ${ROOTDIR}/etc/modules
       echo "cdc_ether" >> ${ROOTDIR}/etc/modules
       echo "lan743x" >> ${ROOTDIR}/etc/modules
+  {{ end }}
+
+  {{ if ne $path_modules_list "" }}
+  - action: run
+    description: Configure kernel modules using a list
+    chroot: false
+    command: |
+      python3 {{ $recipe_dir }}/scripts/modules/setup_modules.py \
+        --source {{ $local_firmware_dir }}/modules/{{ $kernel }}/kernel \
+        --destination ${ROOTDIR}/lib/modules/{{ $kernel }} \
+        --path-target-modules {{ $path_modules_list }}
   {{ end }}
 
   {{ if $include_module_setup }}
