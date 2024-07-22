@@ -7,6 +7,7 @@
 {{- $include_download_firmware := or .include_download_firmware true -}}
 {{- $include_dbt_install := or .include_dbt_install true -}}
 {{- $include_kernel_install := or .include_kernel_install true -}}
+{{- $path_dtbos_list := or .path_dtbos_list "" -}}
 
 {{/* derived variables */}}
 {{- $firmware := (printf "firmware-%s" $firmware_version) -}}
@@ -47,3 +48,14 @@ actions:
     {{ if $include_kernel_install }}
       cp -v {{ $local_firmware_dir }}/boot/kernel8.img              ${ROOTDIR}/boot/firmware/
     {{ end }}
+
+  {{ if ne $path_dtbos_list "" }}
+  - action: run
+    description: Setup dtbo
+    chroot: false
+    command: |
+      python3 {{ $recipe_dir }}/scripts/firmware/setup_overlays_dtbo.py \
+        --source {{ $local_firmware_dir }}/boot/overlays \
+        --destination ${ROOTDIR}/boot/firmware/overlays \
+        --path-target-dtbos {{ $path_dtbos_list }}
+  {{ end }}
