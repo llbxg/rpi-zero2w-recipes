@@ -13,7 +13,7 @@
 
 {{/* optional arguments */}}
 {{- $eth_addr := or .eth_addr "" -}}
-
+{{- $camera_v3 := or .camera_v3 false -}}
 
 architecture: arm64
 
@@ -74,6 +74,18 @@ actions:
     description: Set up network
     chroot: true
     script: {{ $recipe_dir }}/scripts/setup-network.sh -d -t -n
+  {{ end }}
+
+  {{ if $camera_v3 }}
+  - action: recipe
+    description: CAMERA
+    recipe: {{ $recipe_dir }}/recipes/camera.yaml
+    variables:
+      recipe_dir: {{ $recipe_dir }}
+      download_dir: ${ARTIFACTDIR}
+      firmware_version: {{ $firmware_version }}
+      kernel_version: {{ $kernel_version }}
+      target_model: {{ $target_model }}
   {{ end }}
 
   - action: image-partition
