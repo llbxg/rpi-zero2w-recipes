@@ -16,6 +16,8 @@ The default user is `user` with the password `password`.
 
 ## Enabled Modules
 
+### Ethernet　Adapter
+
 By specifying the eth_addr adapter, the following network-related modules are enabled:
 
 - `cdc_ncm`
@@ -26,6 +28,18 @@ Example command:
 
 ```bash
 debos -t eth_addr:"12:34:56:78:9a:bc" -t recipe_dir:${PWD} zero2w.yaml
+```
+
+### Camera Module 3
+
+Enable the use of Camera Module 3 (standard) by importing several modules and device tree overlays (dtbos) from the firmware. 
+The setup also includes installing rpicam-apps to facilitate camera functionality. 
+The detailed setup is documented in camera.yaml.
+
+Example command:
+
+```bash
+debos -t camera_v3:"true" -t recipe_dir:${PWD} zero2w.yaml
 ```
 
 ## Customization
