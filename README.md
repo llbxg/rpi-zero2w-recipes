@@ -42,6 +42,16 @@ Example command:
 debos -t camera_v3:"true" -t recipe_dir:${PWD} zero2w.yaml
 ```
 
+## Initial Boot Partition Expansion
+
+The first boot of the OS automatically expands the filesystem to fully utilize the available storage space on the SD card.
+This feature is controlled by setting `enable_expand_rootfs: true` in the [`recipes/base.yaml`](recipes/base.yaml).
+
+- **Tools Installed**: The script uses fdisk and parted for resizing.
+- **Script and Service**: A dedicated script (expand-rootfs-partition.sh) and a systemd service (expand-rootfs-partition.service) handle the expansion process. After successful expansion, both the script and the service are automatically removed to clean up the system.
+
+For more details on how this feature is implemented, refer to the [`zero2w.yaml`](zero2w.yaml) file.
+
 ## Customization
 
 The repository includes various parts of the recipe stored separately to help you customize your own build.
