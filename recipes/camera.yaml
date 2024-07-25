@@ -1,0 +1,108 @@
+{{/* required arguments */}}
+{{- $recipe_dir := or .recipe_dir "" -}}
+{{- $download_dir := or .download_dir "" -}}
+{{- $firmware_version := or .firmware_version "" -}}
+{{- $kernel_version := or .kernel_version "" -}}
+{{- $target_model := or .target_model "" -}}
+
+{{/* derived variables */}}
+{{- $kernel := (printf "%s-%s+" $kernel_version $target_model) -}}
+{{- $firmware := (printf "firmware-%s" $firmware_version) -}}
+{{- $local_firmware_dir := (printf "%s/%s" $download_dir $firmware ) -}}
+
+
+architecture: arm64
+
+actions:
+  - action: run
+    description: Validate required arguments
+    command: |
+      if [ -z {{ $recipe_dir }} ]; then
+        exit 1
+      fi
+      if [ -z {{ $local_firmware_dir }} ]; then
+        exit 1
+      fi
+      python3 {{ $recipe_dir }}/scripts/check_args.py \
+        "{{ $download_dir }}" "{{ $firmware_version }}" "{{ $kernel_version }}" "{{ $target_model }}"
+
+  - action: run
+    description: Install camera modules for autofocus and Sony IMX708 sensor
+    chroot: false
+    command: |
+      python3 {{ $recipe_dir }}/scripts/modules/setup_modules.py \
+        --source {{ $local_firmware_dir }}/modules/{{ $kernel }}/kernel/drivers \
+        --destination ${ROOTDIR}/lib/modules/{{ $kernel }}/drivers \
+        media/i2c/dw9807-vcm.ko.xz \
+        media/i2c/imx708.ko.xz
+
+  - action: run
+    description: Set up I2C communication modules for camera interfacing
+    chroot: false
+    command: |
+      python3 {{ $recipe_dir }}/scripts/modules/setup_modules.py \
+        --source {{ $local_firmware_dir }}/modules/{{ $kernel }}/kernel/drivers \
+        --destination ${ROOTDIR}/lib/modules/{{ $kernel }}/drivers \
+        i2c/busses/i2c-bcm2835.ko.xz \
+        i2c/muxes/i2c-mux-pinctrl.ko.xz \
+        i2c/i2c-dev.ko.xz \
+        i2c/i2c-mux.ko.xz
+
+  - action: run
+    description: Install modules for video buffer management and device control
+    chroot: false
+    command: |
+      python3 {{ $recipe_dir }}/scripts/modules/setup_modules.py \
+        --source {{ $local_firmware_dir }}/modules/{{ $kernel }}/kernel/drivers \
+        --destination ${ROOTDIR}/lib/modules/{{ $kernel }}/drivers \
+        media/common/videobuf2/videobuf2-common.ko.xz \
+        media/common/videobuf2/videobuf2-dma-contig.ko.xz \
+        media/common/videobuf2/videobuf2-memops.ko.xz \
+        media/common/videobuf2/videobuf2-v4l2.ko.xz \
+        media/mc/mc.ko.xz \
+        media/platform/bcm2835/bcm2835-unicam.ko.xz \
+        media/v4l2-core/v4l2-async.ko.xz \
+        media/v4l2-core/v4l2-dv-timings.ko.xz \
+        media/v4l2-core/v4l2-fwnode.ko.xz \
+        media/v4l2-core/videodev.ko.xz
+
+  - action: run
+    description: Deploy modules for enhanced multimedia processing and communication
+    chroot: false
+    command: |
+      python3 {{ $recipe_dir }}/scripts/modules/setup_modules.py \
+        --source {{ $local_firmware_dir }}/modules/{{ $kernel }}/kernel/drivers \
+        --destination ${ROOTDIR}/lib/modules/{{ $kernel }}/drivers \
+        staging/vc04_services/bcm2835-isp/bcm2835-isp.ko.xz \
+        staging/vc04_services/vc-sm-cma/vc-sm-cma.ko.xz \
+        staging/vc04_services/vchiq-mmal/bcm2835-mmal-vchiq.ko.xz
+
+  - action: run
+    description: Install camera and graphics driver overlays
+    chroot: false
+    command: |
+      python3 {{ $recipe_dir }}/scripts/firmware/setup_overlays_dtbo.py \
+        --source {{ $local_firmware_dir }}/boot/overlays \
+        --destination ${ROOTDIR}/boot/firmware/overlays \
+        imx708.dtbo \
+        vc4-kms-v3d.dtbo
+
+  - action: run
+    command: |
+      echo "dtparam=i2c_arm=on" >> ${ROOTDIR}/boot/firmware/config.txt
+      echo "dtparam=i2c_vc=on" >> ${ROOTDIR}/boot/firmware/config.txt
+      echo "dtoverlay=vc4-kms-v3d" >> ${ROOTDIR}/boot/firmware/config.txt
+      echo "max_framebuffers=2" >> ${ROOTDIR}/boot/firmware/config.txt
+      echo "dtoverlay=imx708" >> ${ROOTDIR}/boot/firmware/config.txt
+
+  - action: run
+    description: Update module dependencies
+    chroot: true
+    command: |
+      depmod -v {{ $kernel }}
+
+  - action: apt
+    description: Install applications for Raspberry Pi camera
+    recommends: false
+    packages:
+      - rpicam-apps
