@@ -8,7 +8,6 @@
 {{/* optional arguments */}}
 {{- $include_all_modules := or .include_all_modules false -}}
 {{- $include_module_setup := or .include_module_setup false -}}
-{{- $eth_addr := or .eth_addr "" -}}
 {{- $path_modules_list := or .path_modules_list "" -}}
 
 {{/* derived variables */}}
@@ -47,18 +46,6 @@ actions:
       mv {{ $local_firmware_dir }}/boot/overlays/*.dtbo ${ROOTDIR}/boot/firmware/overlays/
   {{ end }}
 
-  {{ if ne $eth_addr "" }}
-  - action: run
-    description: Setup modules for ethernet adapter
-    chroot: false
-    command: |
-      python3 {{ $recipe_dir }}/scripts/modules/setup_modules.py \
-        --source {{ $local_firmware_dir }}/modules/{{ $kernel }}/kernel \
-        --destination ${ROOTDIR}/lib/modules/{{ $kernel }} \
-        drivers/net/usb/cdc_ncm.ko.xz \
-        drivers/net/usb/cdc_ether.ko.xz 
-  {{ end }}
-
   {{ if ne $path_modules_list "" }}
   - action: run
     description: Configure kernel modules using a list
@@ -75,6 +62,7 @@ actions:
     description: Transfer kernel module files
     chroot: false
     command: |
+      mkdir -p ${ROOTDIR}/lib/modules/{{ $kernel }}
       mv -v {{ $local_firmware_dir }}/modules/{{ $kernel }}/modules.order           ${ROOTDIR}/lib/modules/{{ $kernel }}
       mv -v {{ $local_firmware_dir }}/modules/{{ $kernel }}/modules.builtin         ${ROOTDIR}/lib/modules/{{ $kernel }}
       mv -v {{ $local_firmware_dir }}/modules/{{ $kernel }}/modules.builtin.modinfo ${ROOTDIR}/lib/modules/{{ $kernel }}

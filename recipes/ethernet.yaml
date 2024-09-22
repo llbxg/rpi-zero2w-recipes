@@ -1,0 +1,60 @@
+{{/* required arguments */}}
+{{- $recipe_dir := or .recipe_dir "" -}}
+{{- $download_dir := or .download_dir "" -}}
+{{- $firmware_version := or .firmware_version "" -}}
+{{- $kernel_version := or .kernel_version "" -}}
+{{- $target_model := or .target_model "" -}}
+{{- $eth_addr := or .eth_addr "" -}}
+
+{{/* derived variables */}}
+{{- $kernel := (printf "%s-%s+" $kernel_version $target_model) -}}
+{{- $firmware := (printf "firmware-%s" $firmware_version) -}}
+{{- $local_firmware_dir := (printf "%s/%s" $download_dir $firmware ) -}}
+
+
+architecture: arm64
+
+actions:
+  - action: run
+    description: Validate required arguments
+    command: |
+      if [ -z {{ $recipe_dir }} ]; then
+        exit 1
+      fi
+      if [ -z {{ $local_firmware_dir }} ]; then
+        exit 1
+      fi
+      python3 {{ $recipe_dir }}/scripts/check_args.py \
+        "{{ $download_dir }}" "{{ $firmware_version }}" "{{ $kernel_version }}" "{{ $target_model }}" "{{ $eth_addr }}"
+
+  - action: run
+    description: Setup modules for ethernet adapter
+    chroot: false
+    command: |
+      python3 {{ $recipe_dir }}/scripts/modules/setup_modules.py \
+        --source {{ $local_firmware_dir }}/modules/{{ $kernel }}/kernel \
+        --destination ${ROOTDIR}/lib/modules/{{ $kernel }} \
+        drivers/net/usb/cdc_ncm.ko.xz \
+        drivers/net/usb/cdc_ether.ko.xz 
+
+  - action: run
+    description: Update module dependencies
+    chroot: true
+    command: |
+      depmod -v {{ $kernel }}
+
+  - action: run
+    description: Set up network configuration
+    command: |
+      cat <<EOF > ${ROOTDIR}/etc/systemd/network/eth0.network
+      [Match]
+      MACAddress={{ $eth_addr }}
+
+      [Network]
+      DHCP=ipv4
+      EOF
+
+  - action: run
+    description: Set up network
+    chroot: true
+    script: {{ $recipe_dir }}/scripts/setup-network.sh -d -t -n
