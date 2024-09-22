@@ -56,11 +56,7 @@ actions:
         --source {{ $local_firmware_dir }}/modules/{{ $kernel }}/kernel \
         --destination ${ROOTDIR}/lib/modules/{{ $kernel }} \
         drivers/net/usb/cdc_ncm.ko.xz \
-        drivers/net/usb/cdc_ether.ko.xz \
-        drivers/net/ethernet/microchip/lan743x.ko.xz
-      echo "cdc_ncm" >> ${ROOTDIR}/etc/modules
-      echo "cdc_ether" >> ${ROOTDIR}/etc/modules
-      echo "lan743x" >> ${ROOTDIR}/etc/modules
+        drivers/net/usb/cdc_ether.ko.xz 
   {{ end }}
 
   {{ if ne $path_modules_list "" }}

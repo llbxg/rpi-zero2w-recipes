@@ -22,7 +22,6 @@ By specifying the eth_addr adapter, the following network-related modules are en
 
 - `cdc_ncm`
 - `cdc_ether`
-- `lan743x`
 
 Example command:
 
