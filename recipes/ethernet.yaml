@@ -57,4 +57,4 @@ actions:
   - action: run
     description: Set up network
     chroot: true
-    script: {{ $recipe_dir }}/scripts/setup-network.sh -d -t -n
+    script: ../scripts/setup-network.sh -d -t -n
