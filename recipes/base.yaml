@@ -9,6 +9,7 @@
 {{- $enable_ssh := or .enable_ssh true -}}
 {{- $enable_expand_rootfs := or .enable_expand_rootfs false -}}
 {{- $enable_rpi_repo := or .enable_rpi_repo false -}}
+{{- $enable_usb_autosuspend_fix := or .enable_usb_autosuspend_fix false -}}
 
 
 architecture: arm64
@@ -72,6 +73,13 @@ actions:
     description: "Write command line parameters to file"
     command: |
       echo "{{ $cmdline }}" > ${ROOTDIR}/boot/firmware/cmdline.txt
+
+  {{ if $enable_usb_autosuspend_fix }}
+  - action: run
+    description: "Append 'usbcore.autosuspend=-1' to disable USB autosuspend"
+    command: |
+      sed -i '$s/$/ usbcore.autosuspend=-1/' ${ROOTDIR}/boot/firmware/cmdline.txt
+  {{ end }}
 
   {{ if $enable_expand_rootfs }}
   - action: apt
