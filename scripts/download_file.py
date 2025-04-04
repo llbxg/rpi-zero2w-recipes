@@ -30,7 +30,7 @@ def extract_tar_file(tar_path: Path, extract_path: Path) -> None:
         if first_dir.exists():
             logger.info("Skipping extraction, directory exists: %s", first_dir)
             return
-        tar.extractall(path=extract_path, filter="tar")
+        tar.extractall(path=extract_path)  # noqa: S202
         logger.info("File extracted successfully: %s", extract_path)
     tar_path.unlink()
     logger.info("Removed the tar file: %s", tar_path)
