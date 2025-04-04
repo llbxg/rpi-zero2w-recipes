@@ -1,0 +1,78 @@
+{{/* required arguments */}}
+{{- $recipe_dir := or .recipe_dir "" -}}
+{{- $download_dir := or .download_dir "" -}}
+{{- $firmware_version := or .firmware_version "" -}}
+{{- $kernel_version := or .kernel_version "" -}}
+{{- $target_model := or .target_model "" -}}
+
+{{/* derived variables */}}
+{{- $kernel := (printf "%s-%s+" $kernel_version $target_model) -}}
+{{- $firmware := (printf "firmware-%s" $firmware_version) -}}
+{{- $local_firmware_dir := (printf "%s/%s" $download_dir $firmware ) -}}
+
+
+architecture: arm64
+
+actions:
+  - action: run
+    description: Validate required arguments
+    command: |
+      if [ -z {{ $recipe_dir }} ]; then
+        exit 1
+      fi
+      if [ -z {{ $local_firmware_dir }} ]; then
+        exit 1
+      fi
+      python3 {{ $recipe_dir }}/scripts/check_args.py \
+        "{{ $download_dir }}" "{{ $firmware_version }}" "{{ $kernel_version }}" "{{ $target_model }}"
+
+  - action: run
+    description: Install kernel modules needed for USB OTG gadget support
+    chroot: false
+    command: |
+      python3 {{ $recipe_dir }}/scripts/modules/setup_modules.py \
+        --source {{ $local_firmware_dir }}/modules/{{ $kernel }}/kernel/drivers \
+        --destination ${ROOTDIR}/lib/modules/{{ $kernel }}/drivers \
+        usb/dwc2/dwc2.ko.xz \
+        usb/gadget/legacy/g_ether.ko.xz \
+        usb/gadget/libcomposite.ko.xz \
+        usb/gadget/function/u_ether.ko.xz \
+        usb/gadget/function/usb_f_rndis.ko.xz \
+        usb/gadget/function/usb_f_ecm.ko.xz
+
+  - action: run
+    description: Install DWC2 device tree overlay
+    chroot: false
+    command: |
+      python3 {{ $recipe_dir }}/scripts/firmware/setup_overlays_dtbo.py \
+        --source {{ $local_firmware_dir }}/boot/overlays \
+        --destination ${ROOTDIR}/boot/firmware/overlays \
+        dwc2.dtbo
+
+  - action: run
+    description: Enable DWC2 OTG overlay in config.txt
+    command: |
+      echo "dtoverlay=dwc2" >> ${ROOTDIR}/boot/firmware/config.txt
+
+  - action: run
+    description: Update module dependencies
+    chroot: true
+    command: |
+      depmod -v {{ $kernel }}
+
+  - action: apt
+    recommends: false
+    packages:
+      - iproute2
+
+  - action: overlay
+    description: "Apply overlay files for USB OTG configuration"
+    source: ../overlays/usb0
+
+  - action: run
+    description: Create Link for usb0
+    chroot: true
+    command: |
+      chmod +x /usr/local/bin/setup_usb0.sh
+      chmod 644 /etc/systemd/system/usb0-setup.service
+      ln -s /etc/systemd/system/usb0-setup.service /etc/systemd/system/multi-user.target.wants/usb0-setup.service

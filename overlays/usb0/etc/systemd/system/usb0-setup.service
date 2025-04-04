@@ -1,0 +1,10 @@
+[Unit]
+Description=Set up USB0 network interface
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/setup_usb0.sh
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
