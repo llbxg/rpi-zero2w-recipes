@@ -10,6 +10,7 @@
 {{- $include_module_setup := or .include_module_setup false -}}
 {{- $path_modules_list := or .path_modules_list "" -}}
 {{- $enable_i2c := or .enable_i2c false -}}
+{{- $enable_wdt := or .enable_wdt false -}}
 
 {{/* derived variables */}}
 {{- $kernel := (printf "%s-%s+" $kernel_version $target_model) -}}
@@ -95,3 +96,8 @@ actions:
   - action: overlay
     source: ../overlays/i2c
   {{ end }}
+
+  {{ if $enable_wdt }}
+  - action: overlay
+    source: ../overlays/watchdog
+  {{ end}}
