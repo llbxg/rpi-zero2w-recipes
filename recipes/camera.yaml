@@ -37,18 +37,6 @@ actions:
         media/i2c/imx708.ko.xz
 
   - action: run
-    description: Set up I2C communication modules for camera interfacing
-    chroot: false
-    command: |
-      python3 {{ $recipe_dir }}/scripts/modules/setup_modules.py \
-        --source {{ $local_firmware_dir }}/modules/{{ $kernel }}/kernel/drivers \
-        --destination ${ROOTDIR}/lib/modules/{{ $kernel }}/drivers \
-        i2c/busses/i2c-bcm2835.ko.xz \
-        i2c/muxes/i2c-mux-pinctrl.ko.xz \
-        i2c/i2c-dev.ko.xz \
-        i2c/i2c-mux.ko.xz
-
-  - action: run
     description: Install modules for video buffer management and device control
     chroot: false
     command: |
@@ -89,8 +77,6 @@ actions:
 
   - action: run
     command: |
-      echo "dtparam=i2c_arm=on" >> ${ROOTDIR}/boot/firmware/config.txt
-      echo "dtparam=i2c_vc=on" >> ${ROOTDIR}/boot/firmware/config.txt
       echo "dtoverlay=vc4-kms-v3d" >> ${ROOTDIR}/boot/firmware/config.txt
       echo "max_framebuffers=2" >> ${ROOTDIR}/boot/firmware/config.txt
       echo "dtoverlay=imx708" >> ${ROOTDIR}/boot/firmware/config.txt
