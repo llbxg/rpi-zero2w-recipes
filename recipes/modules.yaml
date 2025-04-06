@@ -9,6 +9,7 @@
 {{- $include_all_modules := or .include_all_modules false -}}
 {{- $include_module_setup := or .include_module_setup false -}}
 {{- $path_modules_list := or .path_modules_list "" -}}
+{{- $enable_i2c := or .enable_i2c false -}}
 
 {{/* derived variables */}}
 {{- $kernel := (printf "%s-%s+" $kernel_version $target_model) -}}
@@ -72,4 +73,25 @@ actions:
     chroot: true
     command: |
       depmod -v {{ $kernel }}
+  {{ end }}
+
+  {{ if $enable_i2c }}
+  - action: run
+    description: Set up I2C communication modules
+    chroot: false
+    command: |
+      python3 {{ $recipe_dir }}/scripts/modules/setup_modules.py \
+        --source {{ $local_firmware_dir }}/modules/{{ $kernel }}/kernel/drivers \
+        --destination ${ROOTDIR}/lib/modules/{{ $kernel }}/drivers \
+        i2c/busses/i2c-bcm2835.ko.xz \
+        i2c/muxes/i2c-mux-pinctrl.ko.xz \
+        i2c/i2c-dev.ko.xz \
+        i2c/i2c-mux.ko.xz
+  - action: run
+    command: |
+      echo "dtparam=i2c_arm=on" >> ${ROOTDIR}/boot/firmware/config.txt
+      echo "dtparam=i2c_vc=on" >> ${ROOTDIR}/boot/firmware/config.txt
+      echo "dtoverlay=i2c-gpio" >> ${ROOTDIR}/boot/firmware/config.txt
+  - action: overlay
+    source: ../overlays/i2c
   {{ end }}
