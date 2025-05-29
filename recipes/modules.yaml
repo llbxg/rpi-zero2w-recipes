@@ -40,7 +40,7 @@ actions:
     chroot: false
     command: |
       mkdir  -p ${ROOTDIR}/lib/modules/{{ $kernel }}/kernel/drivers
-      mv {{ $local_firmware_dir }}/modules/{{ $kernel }}/kernel/drivers/* ${ROOTDIR}/lib/modules/{{ $kernel }}/kernel/drivers/
+      mv {{ $local_firmware_dir }}/modules/{{ $kernel }}/kernel/* ${ROOTDIR}/lib/modules/{{ $kernel }}/kernel/
       cd ${ROOTDIR}/lib/modules/{{ $kernel }}/kernel/drivers
       for file in $(find . -name "*.ko.xz"); do
         xz -d "$file"
