@@ -56,6 +56,9 @@ actions:
       kernel_version: {{ $kernel_version }}
       target_model: {{ $target_model }}
       include_module_setup: true
+      {{ if $camera_v3 }}
+      enable_i2c: true
+      {{ end }}
 
   {{ if ne $eth_addr "" }}
   - action: recipe

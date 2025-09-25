@@ -9,6 +9,9 @@
 {{- $include_all_modules := or .include_all_modules false -}}
 {{- $include_module_setup := or .include_module_setup false -}}
 {{- $path_modules_list := or .path_modules_list "" -}}
+{{- $enable_i2c := or .enable_i2c false -}}
+{{- $enable_spi := or .enable_spi false -}}
+{{- $enable_wdt := or .enable_wdt false -}}
 
 {{/* derived variables */}}
 {{- $kernel := (printf "%s-%s+" $kernel_version $target_model) -}}
@@ -37,7 +40,7 @@ actions:
     chroot: false
     command: |
       mkdir  -p ${ROOTDIR}/lib/modules/{{ $kernel }}/kernel/drivers
-      mv {{ $local_firmware_dir }}/modules/{{ $kernel }}/kernel/drivers/* ${ROOTDIR}/lib/modules/{{ $kernel }}/kernel/drivers/
+      mv {{ $local_firmware_dir }}/modules/{{ $kernel }}/kernel/* ${ROOTDIR}/lib/modules/{{ $kernel }}/kernel/
       cd ${ROOTDIR}/lib/modules/{{ $kernel }}/kernel/drivers
       for file in $(find . -name "*.ko.xz"); do
         xz -d "$file"
@@ -73,3 +76,50 @@ actions:
     command: |
       depmod -v {{ $kernel }}
   {{ end }}
+
+  {{ if $enable_i2c }}
+  - action: run
+    description: Set up I2C communication modules
+    chroot: false
+    command: |
+      python3 {{ $recipe_dir }}/scripts/modules/setup_modules.py \
+        --source {{ $local_firmware_dir }}/modules/{{ $kernel }}/kernel/drivers \
+        --destination ${ROOTDIR}/lib/modules/{{ $kernel }}/drivers \
+        i2c/busses/i2c-bcm2835.ko.xz \
+        i2c/muxes/i2c-mux-pinctrl.ko.xz \
+        i2c/i2c-dev.ko.xz \
+        i2c/i2c-mux.ko.xz
+  - action: run
+    command: |
+      echo "dtparam=i2c_arm=on" >> ${ROOTDIR}/boot/firmware/config.txt
+      echo "dtparam=i2c_vc=on" >> ${ROOTDIR}/boot/firmware/config.txt
+      echo "dtoverlay=i2c-gpio" >> ${ROOTDIR}/boot/firmware/config.txt
+  - action: overlay
+    source: ../overlays/i2c
+  {{ end }}
+
+  {{ if $enable_spi }}
+  - action: run
+    chroot: false
+    command: |
+      python3 {{ $recipe_dir }}/scripts/modules/setup_modules.py \
+        --source {{ $local_firmware_dir }}/modules/{{ $kernel }}/kernel/drivers \
+        --destination ${ROOTDIR}/lib/modules/{{ $kernel }}/drivers \
+        spi/spidev.ko.xz \
+        spi/spi-bcm2835.ko.xz
+      echo "spidev" >> ${ROOTDIR}/etc/modules
+      echo "dtparam=spi=on" >> ${ROOTDIR}/boot/firmware/config.txt
+  {{ end }}
+
+  {{ if or $enable_i2c $enable_spi }}
+  - action: run
+    description: Update module dependencies
+    chroot: true
+    command: |
+      depmod -v {{ $kernel }}
+  {{ end }}
+
+  {{ if $enable_wdt }}
+  - action: overlay
+    source: ../overlays/watchdog
+  {{ end}}
