@@ -2,6 +2,7 @@
 {{- $recipe_dir := or .recipe_dir "" -}}
 {{- $download_dir := or .download_dir "" -}}
 {{- $firmware_version := or .firmware_version "" -}}
+{{- $model_name := or .model_name "" -}}
 
 {{/* optional arguments */}}
 {{- $include_download_firmware := or .include_download_firmware true -}}
@@ -23,7 +24,8 @@ actions:
       if [ -z {{ $recipe_dir }} ]; then
         exit 1
       fi
-      python3 {{ $recipe_dir }}/scripts/check_args.py "{{ $download_dir }}" "{{ $firmware_version }}"
+      python3 {{ $recipe_dir }}/scripts/check_args.py "{{ $download_dir }}" "{{ $firmware_version }}" "{{ $model_name }}" \
+        --model_name {{ $model_name }}
 
   {{ if $include_download_firmware }}
   - action: run
@@ -39,15 +41,35 @@ actions:
     description: Install firmware
     command: |
       mkdir -p ${ROOTDIR}/boot/firmware/
-      cp -v {{ $local_firmware_dir }}/boot/bootcode.bin             ${ROOTDIR}/boot/firmware/
-      cp -v {{ $local_firmware_dir }}/boot/fixup.dat                ${ROOTDIR}/boot/firmware/
-      cp -v {{ $local_firmware_dir }}/boot/start.elf                ${ROOTDIR}/boot/firmware/
-    {{ if $include_dbt_install }}
+      cp -v {{ $local_firmware_dir }}/boot/bootcode.bin ${ROOTDIR}/boot/firmware/
+    {{ if eq $model_name "zero2w" }}
+      cp -v {{ $local_firmware_dir }}/boot/fixup.dat    ${ROOTDIR}/boot/firmware/
+      cp -v {{ $local_firmware_dir }}/boot/start.elf    ${ROOTDIR}/boot/firmware/
+    {{ end }}  {{/* $model_name "zero2w */}}
+    {{ if eq $model_name "cm4" }}
+      echo 'gpu_mem=16' >> ${ROOTDIR}/boot/firmware/config.txt
+      cp -v {{ $local_firmware_dir }}/boot/fixup4cd.dat   ${ROOTDIR}/boot/firmware/
+      cp -v {{ $local_firmware_dir }}/boot/start4cd.elf   ${ROOTDIR}/boot/firmware/
+    {{ end }}  {{/* $model_name "cm4 */}}
+
+  {{ if $include_dbt_install }}
+  - action: run
+    description: Install dtb
+    command: |
+    {{ if eq $model_name "zero2w" }}
       cp -v {{ $local_firmware_dir }}/boot/bcm2710-rpi-zero-2-w.dtb ${ROOTDIR}/boot/firmware/
-    {{ end }}
-    {{ if $include_kernel_install }}
-      cp -v {{ $local_firmware_dir }}/boot/kernel8.img              ${ROOTDIR}/boot/firmware/
-    {{ end }}
+    {{ end }}  {{/* $model_name "zero2w */}}
+    {{ if eq $model_name "cm4" }}
+      cp -v {{ $local_firmware_dir }}/boot/bcm2711-rpi-cm4-io.dtb ${ROOTDIR}/boot/firmware/
+    {{ end }}  {{/* $model_name "cm4 */}}    
+  {{ end }}  {{/* include_dbt_install */}}
+
+  {{ if $include_kernel_install }}
+  - action: run
+    description: Install kernel
+    command: |  
+      cp -v {{ $local_firmware_dir }}/boot/kernel8.img ${ROOTDIR}/boot/firmware/
+  {{ end }}
 
   {{ if ne $path_dtbos_list "" }}
   - action: run
