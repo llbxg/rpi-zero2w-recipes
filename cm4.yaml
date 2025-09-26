@@ -1,0 +1,125 @@
+{{/* fixed values */}}
+{{- $image            := "cm4.img" -}}
+{{- $firmware_version := "1.20240424" -}}
+{{- $kernel_version   := "6.6.28" -}}
+{{- $target_model     := "v8" -}}
+{{- $hostname         := "cm4" -}}
+{{- $username         := "user" -}}
+{{- $password         := "$5$TxUjVZ9sEXKhxGqZ$zPsFJgdro9SLHUb/XGXuCQgskpYHsthR13OgN.mMtM8" -}}
+{{- $cmdline          := "console=ttyS0,115200 console=tty1 root=/dev/mmcblk1p2 rootfstype=ext4 rootwait" -}}
+
+
+{{/* required arguments */}}
+{{- $recipe_dir := or .recipe_dir "" -}}
+
+{{/* optional arguments */}}
+{{- $eth_addr := or .eth_addr "" -}}
+{{- $camera_v3 := or .camera_v3 false -}}
+{{- $enable_use_cache := or .enable_use_cache false -}}
+{{- $cache_filename := or .cache_filename "cache.tar.gz" -}}
+
+architecture: arm64
+
+actions:
+  - action: run
+    description: Validate required arguments
+    command: |
+      if [ -z {{ $recipe_dir }} ]; then
+        exit 1
+      fi
+
+  {{ if $enable_use_cache }}
+  - action: unpack
+    description: Use cache
+    file: {{ $cache_filename }}
+    compression: gz
+  {{ else }}
+  - action: recipe
+    description: BASE
+    recipe: {{ $recipe_dir }}/recipes/base.yaml
+    variables:
+      recipe_dir: {{ $recipe_dir }}
+      hostname: {{ $hostname }}
+      username: {{ $username}}
+      password: {{ $password }}
+      cmdline: {{ $cmdline }}
+      enable_ssh: true
+      enable_expand_rootfs: true
+      enable_rpi_repo: true
+      enable_usb_autosuspend_fix: true
+  - action: pack
+    description: Pack {{ $cache_filename }}
+    file: {{ $cache_filename }}
+    compression: gz
+  {{ end }}
+
+  - action: apt
+    description: "Install packages"
+    recommends: false
+    packages:
+      - avahi-daemon
+
+  - action: recipe
+    description: FIRMWARE
+    recipe: {{ $recipe_dir }}/recipes/firmware.yaml
+    variables:
+      recipe_dir: {{ $recipe_dir }}
+      download_dir: ${ARTIFACTDIR}
+      firmware_version: {{ $firmware_version }}
+      model_name: "cm4"
+
+  - action: recipe
+    description: MODULES
+    recipe: {{ $recipe_dir }}/recipes/modules.yaml
+    variables:
+      recipe_dir: {{ $recipe_dir }}
+      download_dir: ${ARTIFACTDIR}
+      firmware_version: {{ $firmware_version }}
+      kernel_version: {{ $kernel_version }}
+      target_model: {{ $target_model }}
+      include_module_setup: true
+      include_all_modules: true
+      {{ if $camera_v3 }}
+      enable_i2c: true
+      {{ end }}
+
+  - action: recipe
+    description: FOR OTG
+    recipe: {{ $recipe_dir }}/recipes/otg.yaml
+    variables:
+      recipe_dir: {{ $recipe_dir }}
+      download_dir: ${ARTIFACTDIR}
+      firmware_version: {{ $firmware_version }}
+      kernel_version: {{ $kernel_version }}
+      target_model: {{ $target_model }}
+
+  - action: image-partition
+    imagename: {{ $image }}
+    imagesize: 4GB
+    partitiontype: msdos
+    mountpoints:
+      - mountpoint: /
+        partition: root
+      - mountpoint: /boot/firmware
+        partition: firmware
+        options: [ x-systemd.automount ]
+    partitions:
+      - name: firmware
+        fs: fat32
+        start: 0%
+        end: 256MB
+      - name: root
+        fs: ext4
+        start: 256MB
+        end: 100%
+        flags: [ boot ]
+
+  - action: filesystem-deploy
+    setup-kernel-cmdline: false
+
+  - action: recipe
+    recipe: {{ $recipe_dir }}/recipes/cleanup.yaml
+    variables:
+      recipe_dir: {{ $recipe_dir }}
+      download_dir: ${ARTIFACTDIR}
+      firmware_version: {{ $firmware_version }}
