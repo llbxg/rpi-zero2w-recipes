@@ -12,6 +12,7 @@
 {{- $enable_i2c := or .enable_i2c false -}}
 {{- $enable_spi := or .enable_spi false -}}
 {{- $enable_wdt := or .enable_wdt false -}}
+{{- $enable_sdcard_overclock := or .enable_sdcard_overclock false -}}
 
 {{/* derived variables */}}
 {{- $kernel := (printf "%s-%s+" $kernel_version $target_model) -}}
@@ -123,3 +124,19 @@ actions:
   - action: overlay
     source: ../overlays/watchdog
   {{ end}}
+
+  {{ if $enable_sdcard_overclock }}
+  - action: run
+    description: Enable SD card overclock (80 MHz bus + turbo)
+    command: |
+      echo "initial_turbo=60" >> ${ROOTDIR}/boot/firmware/config.txt
+      echo "dtoverlay=sdhost,overclock_50=80" >> ${ROOTDIR}/boot/firmware/config.txt
+  - action: run
+    description: Install sdhost overlay
+    chroot: false
+    command: |
+      python3 {{ $recipe_dir }}/scripts/firmware/setup_overlays_dtbo.py \
+        --source {{ $local_firmware_dir }}/boot/overlays \
+        --destination ${ROOTDIR}/boot/firmware/overlays \
+        sdhost.dtbo
+  {{ end }}
